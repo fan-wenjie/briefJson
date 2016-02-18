@@ -4,13 +4,22 @@
 #include <stdlib.h>
 #include <stdio.h>
 
+typedef struct
+{
+	json_object data;
+	wchar_t *json;
+	unsigned pos;
+	int succeed;
+	wchar_t *message;
+}parse_engine;
+
 typedef struct strlist
 {
 	int length;
 	struct strlist *next;
 	union
 	{
-		wchar_t text[0];
+		wchar_t text[1];
 		struct strlist *last;
 	}v;
 }strlist;
@@ -55,40 +64,42 @@ static wchar_t *strlist_to_string(strlist *list)
 	return text;
 }
 
-static void insert_item(data_item *list, data_item item_value, wchar_t *key)
+static void insert_item(json_object *list, wchar_t *key)
 {
-	list_item *item;
+	json_object *item;
 	if (key) 
 	{
 		int len = wcslen(key);
-		item = (list_item *)malloc(sizeof(list_item) + sizeof(wchar_t)*(len + 1));
+		item = (json_object *)malloc(sizeof(json_object) + sizeof(wchar_t)*len);
 		item->key[len] = 0;
-		memcpy(item->key, key, sizeof(wchar_t)*len);
-	}else item = (list_item *)malloc(sizeof(list_item));
-	item->value = item_value;
-	item->next = list->v.item;
-	list->v.item = item;
+		wcsncpy(item->key, key, len);
+	}else item = (json_object *)malloc(sizeof(json_object));
+	item->type = NONE;
+	item->next = list->value.item;
+	list->value.item = item;
 }
 
-static wchar_t next_token(parse_result* engine) {
+static wchar_t next_token(parse_engine* engine) {
 	wchar_t ch;
 	while ((ch = engine->json[engine->pos++]) <= ' '&&ch > 0);
 	return engine->json[engine->pos - 1];
 }
 
-void data_free(data_item data)
+void json_object_free(json_object *data)
 {	
-	if(data.type==ARRAY||data.type==TABLE)
-		while (data.v.item)
+	if (data->type == ARRAY || data->type == TABLE)
+		while (data->value.item)
 		{
-			list_item *item = data.v.item;
-			data.v.item = item->next;
-			data_free(item->value);
+			json_object *item = data->value.item;
+			data->value.item = item->next;
+			json_object_free(item);
 			free(item);
 		}
+	else if (data->type == TEXT)
+		free(data->value.text);
 }
 
-static int parsing(parse_result* engine, data_item *pos_parse)
+static int parsing(parse_engine* engine, json_object *pos_parse)
 {
 	wchar_t c = next_token(engine);
 	switch (c)
@@ -100,14 +111,12 @@ static int parsing(parse_result* engine, data_item *pos_parse)
 	case '[':
 	{
 		pos_parse->type = ARRAY;
-		pos_parse->v.item = 0;
+		pos_parse->value.item = 0;
 		if (next_token(engine) == ']') return 0;
 		--engine->pos;
 		while (1)
 		{
-			data_item null_item;
-			null_item.type = NONE;
-			insert_item(pos_parse, null_item,0);
+			insert_item(pos_parse, 0);
 			if (next_token(engine) == ',')
 			{
 				--engine->pos;
@@ -115,7 +124,7 @@ static int parsing(parse_result* engine, data_item *pos_parse)
 			else 
 			{
 				--engine->pos;
-				if (parsing(engine, &(pos_parse->v.item->value)))
+				if (parsing(engine, pos_parse->value.item))
 					return 1;
 			}
 			switch (next_token(engine))
@@ -137,15 +146,15 @@ static int parsing(parse_result* engine, data_item *pos_parse)
 	case '{':
 	{
 		pos_parse->type = TABLE;
-		pos_parse->v.item = 0;
+		pos_parse->value.item = 0;
 		if (next_token(engine) == '}') return 0;
 		--engine->pos;
 		while (1)
 		{
-			data_item key;
+			json_object key;
 			if (parsing(engine, &key) || key.type != TEXT)
 			{
-				data_free(key);
+				json_object_free(&key);
 				engine->message = L"Illegal key of pair";
 				return 1;
 			}
@@ -154,11 +163,9 @@ static int parsing(parse_result* engine, data_item *pos_parse)
 				engine->message = L"Expected a ':'";
 				return 1;
 			}
-			data_item null_item;
-			null_item.type = NONE;
-			insert_item(pos_parse, null_item, key.v.text);
-			data_free(key);
-			if (parsing(engine, &(pos_parse->v.item->value)))
+			insert_item(pos_parse, key.value.text);
+			json_object_free(&key);
+			if (parsing(engine, pos_parse->value.item))
 			{
 				return 1;
 			}
@@ -183,7 +190,7 @@ static int parsing(parse_result* engine, data_item *pos_parse)
 	case '"':
 	{
 		pos_parse->type = TEXT;
-		pos_parse->v.text = 0;
+		pos_parse->value.text = 0;
 		strlist str = { 0 };
 		while (1)
 		{
@@ -245,7 +252,7 @@ static int parsing(parse_result* engine, data_item *pos_parse)
 			default:
 				if (ch == c)
 				{
-					pos_parse->v.text = strlist_to_string(&str);
+					pos_parse->value.text = strlist_to_string(&str);
 					strlist_free(&str);
 					return 0;
 				}
@@ -277,8 +284,8 @@ static int parsing(parse_result* engine, data_item *pos_parse)
 	if (!length)
 	{
 		pos_parse->type = TEXT;
-		pos_parse->v.text = (wchar_t *)malloc(sizeof(wchar_t));
-		pos_parse->v.text[0] = 0;
+		pos_parse->value.text = (wchar_t *)malloc(sizeof(wchar_t));
+		pos_parse->value.text[0] = 0;
 		return 0;
 	}
 	else {
@@ -291,19 +298,19 @@ static int parsing(parse_result* engine, data_item *pos_parse)
 		if (iszero)
 		{
 			pos_parse->type = INTEGER;
-			pos_parse->v.integer = 0;
+			pos_parse->value.integer = 0;
 			return 0;
 		}
 		if (!strcmp(str, "TRUE") || !strcmp(str, "true"))
 		{
 			pos_parse->type = BOOLEAN;
-			pos_parse->v.boolen = 1;
+			pos_parse->value.boolen = 1;
 			return 0;
 		}
 		else if (!strcmp(str, "FALSE") || !strcmp(str, "false"))
 		{
 			pos_parse->type = BOOLEAN;
-			pos_parse->v.boolen = 0;
+			pos_parse->value.boolen = 0;
 			return 0;
 		}
 		else if (!strcmp(str, "NULL") || !strcmp(str, "null"))
@@ -317,7 +324,7 @@ static int parsing(parse_result* engine, data_item *pos_parse)
 			if (value)
 			{
 				pos_parse->type = INTEGER;
-				pos_parse->v.integer = value;
+				pos_parse->value.integer = value;
 				return 0;
 			}
 		}
@@ -327,7 +334,7 @@ static int parsing(parse_result* engine, data_item *pos_parse)
 			if (value)
 			{
 				pos_parse->type = DECIMAL;
-				pos_parse->v.decimal = value;
+				pos_parse->value.decimal = value;
 				return 0;
 			}
 		}
@@ -338,28 +345,30 @@ static int parsing(parse_result* engine, data_item *pos_parse)
 
 
 
-parse_result json_parse(wchar_t json[])
+json_object json_parse(wchar_t json[],wchar_t **message,int* error_pos)
 {
-	parse_result result;
+	parse_engine result;
 	result.data.type = NONE;
 	result.pos = 0;
 	result.json = json;
 	if (parsing(&result, &result.data))
 	{
-		data_free(result.data);
-		result.succeed = 0;
-		return result;
+		if(message)		*message = result.message;
+		json_object_free(&result.data);
+		*error_pos = result.pos;
+		json_object null_item;
+		null_item.type = NONE;
+		return null_item;
 	}
-	result.succeed = 1;
-	result.message = L"SUCCEED";
-	result.pos = 0;
-	return result;
+	if(message)	*message = L"SUCCEED";
+	if(error_pos) *error_pos = -1;
+	return result.data;
 }
 
-static void to_string(data_item data, strlist *head)
+static void to_string(json_object *data, strlist *head)
 {
 
-	switch (data.type) {
+	switch (data->type) {
 	case NONE:
 	{
 		strlist_append(head, L"null", 4);
@@ -370,8 +379,8 @@ static void to_string(data_item data, strlist *head)
 	{
 		char tmp[32] = { 0 };
 		wchar_t tmp1[32] = { 0 };
-		const char *format = data.type == INTEGER ? "%lld" : "%lf";
-		sprintf(tmp, format, data.v.integer);
+		const char *format = data->type == INTEGER ? "%lld" : "%lf";
+		sprintf(tmp, format, data->value.integer);
 		int len = strlen(tmp);
 		for (int i = 0; i < len; ++i)
 			tmp1[i] = tmp[i];
@@ -380,21 +389,21 @@ static void to_string(data_item data, strlist *head)
 	}
 	case BOOLEAN:
 	{
-		int len = data.v.boolen ? 4 : 5;
-		wchar_t *value = data.v.boolen ? L"true" : L"false";
+		int len = data->value.boolen ? 4 : 5;
+		wchar_t *value = data->value.boolen ? L"true" : L"false";
 		strlist_append(head, value, len);
 		break;
 	}
 	case TEXT:
 	{
 		strlist_append(head, L"\"", 1);
-		strlist_append(head, data.v.text, wcslen(data.v.text));
+		strlist_append(head, data->value.text, wcslen(data->value.text));
 		strlist_append(head, L"\"", 1);
 		break;
 	}
 	case TABLE:
 	{
-		list_item *item = data.v.item;
+		json_object *item = data->value.item;
 		int index = 0;
 		while (item)
 		{
@@ -402,7 +411,7 @@ static void to_string(data_item data, strlist *head)
 			else strlist_append(head, L"{\"", 2);
 			strlist_append(head, item->key, wcslen(item->key));
 			strlist_append(head, L"\":", 2);
-			to_string(item->value,head);
+			to_string(item,head);
 
 			item = item->next;
 			++index;
@@ -412,12 +421,12 @@ static void to_string(data_item data, strlist *head)
 	}
 	case ARRAY:
 	{
-		list_item *item = data.v.item;
+		json_object *item = data->value.item;
 		int index = 0;
 		while (item)
 		{
 			strlist_append(head, index ? L"," : L"[", 1);
-			to_string(item->value, head);
+			to_string(item, head);
 			item = item->next;
 			++index;
 		}
@@ -427,7 +436,7 @@ static void to_string(data_item data, strlist *head)
 	}
 }
 
-wchar_t *json_serialize(data_item data)
+wchar_t *json_serialize(json_object *data)
 {
 	strlist head = { 0 };
 	to_string(data, &head);
