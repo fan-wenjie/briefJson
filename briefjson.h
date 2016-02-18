@@ -1,8 +1,7 @@
 #ifndef BRIEFJSON_H
 #define BRIEFJSON_H
-
 #include <wchar.h>
-
+//types of json object
 typedef enum
 {
 	NONE = 0,
@@ -12,38 +11,31 @@ typedef enum
 	TEXT = 4,
 	ARRAY = 5,
 	TABLE = 6,
-}type_t;
+}json_type;
 
-typedef struct data_item{
-	type_t type;
+typedef struct json_object{
+	json_type type;	//type of json object
 	union
 	{
 		int boolen;
 		long long integer;
 		double decimal;
 		wchar_t *text;
-		struct list_item *item;
-	}v;
-}data_item;
+		struct json_object *item;
+	}value;		//union of json value
+	struct json_object *next;	//if object included in array or table,it point to next object of the array or table
+	wchar_t key[1];				//if object included in table,it is key
+}json_object;
 
-typedef struct list_item {
-	struct data_item value;
-	struct list_item *next;
-	wchar_t key[0];
-}list_item;
-
-
-typedef struct
-{
-	data_item data;
-	wchar_t *json;
-	unsigned pos;
-	int succeed;
-	wchar_t *message;
-}parse_result;
-
-void data_free(data_item data);
-parse_result json_parse(wchar_t json[]);
-wchar_t *json_serialize(data_item data);
+void json_object_free(json_object* data);	//free the memory of json object
+json_object json_parse(wchar_t json[], wchar_t **message, int* error_pos);//parse json text to json object
+wchar_t *json_serialize(json_object* data);//serialize json object to json text
 
 #endif // BRIEFJSON_H
+
+
+
+
+
+
+
