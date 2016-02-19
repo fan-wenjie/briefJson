@@ -32,10 +32,3 @@ json_object json_parse(wchar_t json[], wchar_t **message, int* error_pos);//pars
 wchar_t *json_serialize(json_object* data);//serialize json object to json text
 
 #endif // BRIEFJSON_H
-
-
-
-
-
-
-
