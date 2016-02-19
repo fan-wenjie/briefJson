@@ -50,7 +50,7 @@ static void strlist_free(strlist *list)
 
 static wchar_t *strlist_to_string(strlist *list)
 {
-	wchar_t *text = (wchar_t *)malloc(sizeof(wchar_t)*list->length);
+	wchar_t *text = (wchar_t *)malloc(sizeof(wchar_t)*(list->length + 1));
 	text[list->length] = 0;
 	wchar_t *pos = text;
 	strlist* str = list->next;
