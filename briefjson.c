@@ -262,24 +262,22 @@ static int parsing(parse_engine* engine, json_object *pos_parse)
 		break;
 	}
 	}
-	const wchar_t keychar[] = { ',', ':', ']', '}', '/', '\\', '\"', '[', '{', ';', '=', '#' };
-	const int keycharCount = 12;
 	int length = 0;
+    char str[32] = { 0 };
 	while (c >= ' ') {
-		int i = 0;
-		for (; i < keycharCount; ++i)
-			if (keychar[i] == c)
-				break;
-		if (i != keycharCount)
-			break;
-		++length;
-		c = *engine->pos++;
+        if(strchr(",:]}/\\\"[{;=#", c))
+            break;
+        if(length<sizeof(str)&&strchr("0123456789+-.AEFLNRSTUaeflnrstu",c))
+        {
+            str[length++]=(char)c;
+            c = *engine->pos++;
+        }
+        else{
+            engine->message=L"Illegal Value";
+            return 1;
+        }
 	}
-	char str[32] = { 0 };
-	{
-		wchar_t *start = (--engine->pos) - length;
-		for (int i = 0; i < length&&i < 32; ++i) str[i] = (char)start[i];
-	}
+    --engine->pos;
 	if (!length)
 	{
 		pos_parse->type = TEXT;
@@ -342,8 +340,6 @@ static int parsing(parse_engine* engine, json_object *pos_parse)
 	}
 }
 
-
-
 json_object json_parse(wchar_t json[],wchar_t **message,long* error_pos)
 {
 	parse_engine result;
@@ -366,7 +362,6 @@ json_object json_parse(wchar_t json[],wchar_t **message,long* error_pos)
 
 static void object_to_string(json_object *data, strlist *head)
 {
-
 	switch (data->type) {
 	case NONE:
 	{
@@ -431,6 +426,7 @@ static void object_to_string(json_object *data, strlist *head)
 		}
 		strlist_append(head, L"]", 1);
 		break;
+        
 	}
 	}
 }
