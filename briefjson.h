@@ -17,7 +17,7 @@ typedef struct json_object{
 	json_type type;	//type of json object
 	union
 	{
-		int boolen;
+		int boolean;
 		long long integer;
 		double decimal;
 		wchar_t *text;
@@ -28,7 +28,7 @@ typedef struct json_object{
 }json_object;
 
 void json_object_free(json_object* data);	//free the memory of json object
-json_object json_parse(wchar_t json[], wchar_t **message, int* error_pos);//parse json text to json object
+json_object json_parse(wchar_t json[], wchar_t **message, long* error_pos);//parse json text to json object
 wchar_t *json_serialize(json_object* data);//serialize json object to json text
 
 #endif // BRIEFJSON_H
