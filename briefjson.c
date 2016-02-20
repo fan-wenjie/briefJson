@@ -1,21 +1,20 @@
-#include "briefJson.h"
-#include <malloc.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include "briefJson.h"
 
 typedef struct
 {
 	json_object data;
 	wchar_t *json;
-	unsigned pos;
+	wchar_t *pos;
 	int succeed;
 	wchar_t *message;
 }parse_engine;
 
 typedef struct strlist
 {
-	int length;
+	size_t length;
 	struct strlist *next;
 	union
 	{
@@ -24,7 +23,7 @@ typedef struct strlist
 	}v;
 }strlist;
 
-static int strlist_append(strlist *des, wchar_t *src, int length)
+static size_t strlist_append(strlist *des, wchar_t *src, size_t length)
 {
 	if (!des->next)
 		des->v.last = des;
@@ -69,7 +68,7 @@ static void insert_item(json_object *list, wchar_t *key)
 	json_object *item;
 	if (key) 
 	{
-		int len = wcslen(key);
+		size_t len = wcslen(key);
 		item = (json_object *)malloc(sizeof(json_object) + sizeof(wchar_t)*len);
 		item->key[len] = 0;
 		wcsncpy(item->key, key, len);
@@ -81,8 +80,8 @@ static void insert_item(json_object *list, wchar_t *key)
 
 static wchar_t next_token(parse_engine* engine) {
 	wchar_t ch;
-	while ((ch = engine->json[engine->pos++]) <= ' '&&ch > 0);
-	return engine->json[engine->pos - 1];
+    while ((ch = *engine->pos++) <= ' '&&ch>0);
+	return *(engine->pos - 1);
 }
 
 void json_object_free(json_object *data)
@@ -194,7 +193,7 @@ static int parsing(parse_engine* engine, json_object *pos_parse)
 		strlist str = { 0 };
 		while (1)
 		{
-			wchar_t ch = engine->json[engine->pos++];
+			wchar_t ch = *engine->pos++;
 			switch (ch)
 			{
 			case '\n':
@@ -203,7 +202,7 @@ static int parsing(parse_engine* engine, json_object *pos_parse)
 				engine->message = L"Unterminated string";
 				return 1;
 			case '\\':
-				ch = engine->json[engine->pos++];
+				ch = *engine->pos++;
 				switch (ch)
 				{
 				case 'b':
@@ -231,7 +230,7 @@ static int parsing(parse_engine* engine, json_object *pos_parse)
 					wchar_t num = 0;
 					for (int i = 0; i < 4; ++i)
 					{
-						wchar_t tmp = engine->json[engine->pos++];
+						wchar_t tmp = *engine->pos++;
 						if (tmp >= '0'&&tmp <= '9')
 							tmp = tmp - '0';
 						else if (tmp >= 'A'&&tmp <= 'F')
@@ -274,11 +273,11 @@ static int parsing(parse_engine* engine, json_object *pos_parse)
 		if (i != keycharCount)
 			break;
 		++length;
-		c = engine->json[engine->pos++];
+		c = *engine->pos++;
 	}
 	char str[32] = { 0 };
 	{
-		wchar_t *start = (--engine->pos) - length + engine->json;
+		wchar_t *start = (--engine->pos) - length;
 		for (int i = 0; i < length&&i < 32; ++i) str[i] = (char)start[i];
 	}
 	if (!length)
@@ -304,13 +303,13 @@ static int parsing(parse_engine* engine, json_object *pos_parse)
 		if (!strcmp(str, "TRUE") || !strcmp(str, "true"))
 		{
 			pos_parse->type = BOOLEAN;
-			pos_parse->value.boolen = 1;
+			pos_parse->value.boolean = 1;
 			return 0;
 		}
 		else if (!strcmp(str, "FALSE") || !strcmp(str, "false"))
 		{
 			pos_parse->type = BOOLEAN;
-			pos_parse->value.boolen = 0;
+			pos_parse->value.boolean = 0;
 			return 0;
 		}
 		else if (!strcmp(str, "NULL") || !strcmp(str, "null"))
@@ -345,17 +344,17 @@ static int parsing(parse_engine* engine, json_object *pos_parse)
 
 
 
-json_object json_parse(wchar_t json[],wchar_t **message,int* error_pos)
+json_object json_parse(wchar_t json[],wchar_t **message,long* error_pos)
 {
 	parse_engine result;
 	result.data.type = NONE;
-	result.pos = 0;
+	result.pos = json;
 	result.json = json;
 	if (parsing(&result, &result.data))
 	{
 		if(message)		*message = result.message;
 		json_object_free(&result.data);
-		if(error_pos)		*error_pos = result.pos;
+		if(error_pos)		*error_pos = result.pos-result.json;
 		json_object null_item;
 		null_item.type = NONE;
 		return null_item;
@@ -365,7 +364,7 @@ json_object json_parse(wchar_t json[],wchar_t **message,int* error_pos)
 	return result.data;
 }
 
-static void to_string(json_object *data, strlist *head)
+static void object_to_string(json_object *data, strlist *head)
 {
 
 	switch (data->type) {
@@ -381,7 +380,7 @@ static void to_string(json_object *data, strlist *head)
 		wchar_t tmp1[32] = { 0 };
 		const char *format = data->type == INTEGER ? "%lld" : "%lf";
 		sprintf(tmp, format, data->value.integer);
-		int len = strlen(tmp);
+		size_t len = strlen(tmp);
 		for (int i = 0; i < len; ++i)
 			tmp1[i] = tmp[i];
 		strlist_append(head, tmp1, len);
@@ -389,8 +388,8 @@ static void to_string(json_object *data, strlist *head)
 	}
 	case BOOLEAN:
 	{
-		int len = data->value.boolen ? 4 : 5;
-		wchar_t *value = data->value.boolen ? L"true" : L"false";
+		int len = data->value.boolean ? 4 : 5;
+		wchar_t *value = data->value.boolean ? L"true" : L"false";
 		strlist_append(head, value, len);
 		break;
 	}
@@ -411,7 +410,7 @@ static void to_string(json_object *data, strlist *head)
 			else strlist_append(head, L"{\"", 2);
 			strlist_append(head, item->key, wcslen(item->key));
 			strlist_append(head, L"\":", 2);
-			to_string(item,head);
+			object_to_string(item,head);
 
 			item = item->next;
 			++index;
@@ -426,7 +425,7 @@ static void to_string(json_object *data, strlist *head)
 		while (item)
 		{
 			strlist_append(head, index ? L"," : L"[", 1);
-			to_string(item, head);
+			object_to_string(item, head);
 			item = item->next;
 			++index;
 		}
@@ -439,7 +438,7 @@ static void to_string(json_object *data, strlist *head)
 wchar_t *json_serialize(json_object *data)
 {
 	strlist head = { 0 };
-	to_string(data, &head);
+	object_to_string(data, &head);
 	wchar_t *string = strlist_to_string(&head);	
 	return string;
 }
