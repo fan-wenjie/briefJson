@@ -262,22 +262,22 @@ static int parsing(parse_engine* engine, json_object *pos_parse)
 		break;
 	}
 	}
-	int length = 0;
-    char str[32] = { 0 };
-	while (c >= ' ') {
-        if(strchr(",:]}/\\\"[{;=#", c))
-            break;
-        if(length<sizeof(str)&&strchr("0123456789+-.AEFLNRSTUaeflnrstu",c))
-        {
-            str[length++]=(char)c;
-            c = *engine->pos++;
-        }
-        else{
-            engine->message=L"Illegal Value";
-            return 1;
-        }
+  int length = 0;
+  char str[32] = { 0 };
+  while (c >= ' ') {
+      if(strchr(",:]}/\\\"[{;=#", c))
+          break;
+      if(length<sizeof(str)&&strchr("0123456789+-.AEFLNRSTUaeflnrstu",c))
+      {
+          str[length++]=(char)c;
+          c = *engine->pos++;
+      }
+      else{
+          engine->message=L"Illegal Value";
+          return 1;
+      }
 	}
-    --engine->pos;
+  --engine->pos;
 	if (!length)
 	{
 		pos_parse->type = TEXT;
