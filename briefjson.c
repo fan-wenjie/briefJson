@@ -355,7 +355,7 @@ json_object json_parse(wchar_t json[],wchar_t **message,int* error_pos)
 	{
 		if(message)		*message = result.message;
 		json_object_free(&result.data);
-		*error_pos = result.pos;
+		if(error_pos)		*error_pos = result.pos;
 		json_object null_item;
 		null_item.type = NONE;
 		return null_item;
