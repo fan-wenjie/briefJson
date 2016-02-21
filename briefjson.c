@@ -23,7 +23,7 @@ typedef struct strlist
 	}v;
 }strlist;
 
-static size_t strlist_append(strlist *des, wchar_t *src, size_t length)
+static size_t strlist_append(strlist *des, const wchar_t *src, size_t length)
 {
 	if (!des->next)
 		des->v.last = des;
@@ -63,7 +63,7 @@ static wchar_t *strlist_to_string(strlist *list)
 	return text;
 }
 
-static void insert_item(json_object *list, wchar_t *key)
+static json_object* insert_item(json_object *list, wchar_t *key)
 {
 	json_object *item;
 	if (key) 
@@ -74,8 +74,15 @@ static void insert_item(json_object *list, wchar_t *key)
 		wcsncpy(item->key, key, len);
 	}else item = (json_object *)malloc(sizeof(json_object));
 	item->type = NONE;
-	item->next = list->value.item;
-	list->value.item = item;
+    item->next = 0;
+    if(!list->value.item) list->value.item=item;
+    else for(json_object *i=list->value.item;;i=i->next)
+        if(!i->next)
+        {
+            i->next = item;
+            break;
+        }
+    return item;
 }
 
 static wchar_t next_token(parse_engine* engine) {
@@ -84,27 +91,13 @@ static wchar_t next_token(parse_engine* engine) {
 	return *(engine->pos - 1);
 }
 
-void json_object_free(json_object *data)
-{	
-	if (data->type == ARRAY || data->type == TABLE)
-		while (data->value.item)
-		{
-			json_object *item = data->value.item;
-			data->value.item = item->next;
-			json_object_free(item);
-			free(item);
-		}
-	else if (data->type == TEXT)
-		free(data->value.text);
-}
-
 static int parsing(parse_engine* engine, json_object *pos_parse)
 {
 	wchar_t c = next_token(engine);
 	switch (c)
 	{
 	case 0:
-		engine->message = L"Unexpected end";
+		engine->message = (wchar_t *)L"Unexpected end";
 		return 1;
 
 	case '[':
@@ -115,7 +108,7 @@ static int parsing(parse_engine* engine, json_object *pos_parse)
 		--engine->pos;
 		while (1)
 		{
-			insert_item(pos_parse, 0);
+			json_object *item = insert_item(pos_parse, 0);
 			if (next_token(engine) == ',')
 			{
 				--engine->pos;
@@ -123,7 +116,7 @@ static int parsing(parse_engine* engine, json_object *pos_parse)
 			else 
 			{
 				--engine->pos;
-				if (parsing(engine, pos_parse->value.item))
+				if (parsing(engine, item))
 					return 1;
 			}
 			switch (next_token(engine))
@@ -136,7 +129,7 @@ static int parsing(parse_engine* engine, json_object *pos_parse)
 			case ']':
 				return 0;
 			default:
-				engine->message = L":Expected a ',' or ']'";
+				engine->message = (wchar_t *)L":Expected a ',' or ']'";
 				return 1;
 			}
 		}
@@ -154,17 +147,17 @@ static int parsing(parse_engine* engine, json_object *pos_parse)
 			if (parsing(engine, &key) || key.type != TEXT)
 			{
 				json_object_free(&key);
-				engine->message = L"Illegal key of pair";
+				engine->message = (wchar_t *)L"Illegal key of pair";
 				return 1;
 			}
 			if (next_token(engine) != ':')
 			{
-				engine->message = L"Expected a ':'";
+				engine->message = (wchar_t *)L"Expected a ':'";
 				return 1;
 			}
-			insert_item(pos_parse, key.value.text);
+			json_object* item=insert_item(pos_parse, key.value.text);
 			json_object_free(&key);
-			if (parsing(engine, pos_parse->value.item))
+			if (parsing(engine, item))
 			{
 				return 1;
 			}
@@ -179,7 +172,7 @@ static int parsing(parse_engine* engine, json_object *pos_parse)
 			case '}':
 				return 0;
 			default:
-				engine->message = L"Expected a ',' or '}'";
+				engine->message = (wchar_t *)L"Expected a ',' or '}'";
 				return 1;
 			}
 		}
@@ -199,7 +192,7 @@ static int parsing(parse_engine* engine, json_object *pos_parse)
 			case '\n':
 			case '\r':
 				strlist_free(&str);
-				engine->message = L"Unterminated string";
+				engine->message = (wchar_t *)L"Unterminated string";
 				return 1;
 			case '\\':
 				ch = *engine->pos++;
@@ -244,7 +237,7 @@ static int parsing(parse_engine* engine, json_object *pos_parse)
 				}
 				default:
 					strlist_free(&str);
-					engine->message = L"Illegal escape";
+					engine->message = (wchar_t *)L"Illegal escape";
 					return 1;
 				}
 				break;
@@ -262,22 +255,22 @@ static int parsing(parse_engine* engine, json_object *pos_parse)
 		break;
 	}
 	}
-  int length = 0;
-  char str[32] = { 0 };
-  while (c >= ' ') {
-      if(strchr(",:]}/\\\"[{;=#", c))
-          break;
-      if(length<sizeof(str)&&strchr("0123456789+-.AEFLNRSTUaeflnrstu",c))
-      {
-          str[length++]=(char)c;
-          c = *engine->pos++;
-      }
-      else{
-          engine->message=L"Illegal Value";
-          return 1;
-      }
+    int length = 0;
+    char str[32] = { 0 };
+    while (c >= ' ') {
+        if(strchr(",:]}/\\\"[{;=#", c))
+            break;
+        if(length<sizeof(str)&&strchr("0123456789+-.AEFLNRSTUaeflnrstu",c))
+        {
+            str[length++]=(char)c;
+            c = *engine->pos++;
+        }
+        else{
+            engine->message=(wchar_t *)L"Illegal Value";
+            return 1;
+        }
 	}
-  --engine->pos;
+    --engine->pos;
 	if (!length)
 	{
 		pos_parse->type = TEXT;
@@ -335,9 +328,80 @@ static int parsing(parse_engine* engine, json_object *pos_parse)
 				return 0;
 			}
 		}
-		engine->message = L"Unexpected end";
+		engine->message = (wchar_t *)L"Unexpected end";
 		return 1;
 	}
+}
+
+static void object_to_string(json_object *data, strlist *head)
+{
+    switch (data->type) {
+        case NONE:
+        {
+            strlist_append(head, L"null", 4);
+            break;
+        }
+        case INTEGER:
+        case DECIMAL:
+        {
+            char tmp[32] = { 0 };
+            wchar_t tmp1[32] = { 0 };
+            const char *format = data->type == INTEGER ? "%lld" : "%lf";
+            sprintf(tmp, format, data->value.integer);
+            size_t len = strlen(tmp);
+            for (int i = 0; i < len; ++i)
+                tmp1[i] = tmp[i];
+            strlist_append(head, tmp1, len);
+            break;
+        }
+        case BOOLEAN:
+        {
+            int len = data->value.boolean ? 4 : 5;
+            const wchar_t *value = data->value.boolean ? L"true" : L"false";
+            strlist_append(head, value, len);
+            break;
+        }
+        case TEXT:
+        {
+            strlist_append(head, L"\"", 1);
+            strlist_append(head, data->value.text, wcslen(data->value.text));
+            strlist_append(head, L"\"", 1);
+            break;
+        }
+        case TABLE:
+        {
+            json_object *item = data->value.item;
+            int index = 0;
+            while (item)
+            {
+                if(index) strlist_append(head, L",\"", 2);
+                else strlist_append(head, L"{\"", 2);
+                strlist_append(head, item->key, wcslen(item->key));
+                strlist_append(head, L"\":", 2);
+                object_to_string(item,head);
+                
+                item = item->next;
+                ++index;
+            }
+            strlist_append(head, L"}", 1);
+            break;
+        }
+        case ARRAY:
+        {
+            json_object *item = data->value.item;
+            int index = 0;
+            while (item)
+            {
+                strlist_append(head, index ? L"," : L"[", 1);
+                object_to_string(item, head);
+                item = item->next;
+                ++index;
+            }
+            strlist_append(head, L"]", 1);
+            break;
+            
+        }
+    }
 }
 
 json_object json_parse(wchar_t json[],wchar_t **message,long* error_pos)
@@ -355,81 +419,12 @@ json_object json_parse(wchar_t json[],wchar_t **message,long* error_pos)
 		null_item.type = NONE;
 		return null_item;
 	}
-	if(message)	*message = L"SUCCEED";
+	if(message)	*message = (wchar_t *)L"SUCCEED";
 	if(error_pos) *error_pos = -1;
 	return result.data;
 }
 
-static void object_to_string(json_object *data, strlist *head)
-{
-	switch (data->type) {
-	case NONE:
-	{
-		strlist_append(head, L"null", 4);
-		break;
-	}
-	case INTEGER:
-	case DECIMAL:
-	{
-		char tmp[32] = { 0 };
-		wchar_t tmp1[32] = { 0 };
-		const char *format = data->type == INTEGER ? "%lld" : "%lf";
-		sprintf(tmp, format, data->value.integer);
-		size_t len = strlen(tmp);
-		for (int i = 0; i < len; ++i)
-			tmp1[i] = tmp[i];
-		strlist_append(head, tmp1, len);
-		break;
-	}
-	case BOOLEAN:
-	{
-		int len = data->value.boolean ? 4 : 5;
-		wchar_t *value = data->value.boolean ? L"true" : L"false";
-		strlist_append(head, value, len);
-		break;
-	}
-	case TEXT:
-	{
-		strlist_append(head, L"\"", 1);
-		strlist_append(head, data->value.text, wcslen(data->value.text));
-		strlist_append(head, L"\"", 1);
-		break;
-	}
-	case TABLE:
-	{
-		json_object *item = data->value.item;
-		int index = 0;
-		while (item)
-		{
-			if(index) strlist_append(head, L",\"", 2);
-			else strlist_append(head, L"{\"", 2);
-			strlist_append(head, item->key, wcslen(item->key));
-			strlist_append(head, L"\":", 2);
-			object_to_string(item,head);
 
-			item = item->next;
-			++index;
-		}
-		strlist_append(head, L"}", 1);
-		break;
-	}
-	case ARRAY:
-	{
-		json_object *item = data->value.item;
-		int index = 0;
-		while (item)
-		{
-			strlist_append(head, index ? L"," : L"[", 1);
-			object_to_string(item, head);
-			item = item->next;
-			++index;
-		}
-		strlist_append(head, L"]", 1);
-		break;
-        
-	}
-	}
-}
 
 wchar_t *json_serialize(json_object *data)
 {
@@ -437,4 +432,18 @@ wchar_t *json_serialize(json_object *data)
 	object_to_string(data, &head);
 	wchar_t *string = strlist_to_string(&head);	
 	return string;
+}
+
+void json_object_free(json_object *data)
+{
+    if (data->type == ARRAY || data->type == TABLE)
+        while (data->value.item)
+        {
+            json_object *item = data->value.item;
+            data->value.item = item->next;
+            json_object_free(item);
+            free(item);
+        }
+    else if (data->type == TEXT)
+        free(data->value.text);
 }
