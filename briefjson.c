@@ -347,7 +347,7 @@ static void object_to_string(json_object *data, strlist *head)
             char tmp[32] = { 0 };
             wchar_t tmp1[32] = { 0 };
             const char *format = data->type == INTEGER ? "%lld" : "%lf";
-            sprintf(tmp, format, data->value.integer);
+            sprintf(tmp, format, data->value);
             size_t len = strlen(tmp);
             for (int i = 0; i < len; ++i)
                 tmp1[i] = tmp[i];
