@@ -3,22 +3,11 @@
 #include <wchar.h>
 
 #ifndef __cplusplus
-typedef int bool;
-#define true 1
-#define false 0
+typedef enum { false, true }bool;
 #endif // !__cplusplus
 
 //types of json object
-typedef enum
-{
-	NONE = 0,
-	BOOLEAN = 1,
-	INTEGER = 2,
-	DECIMAL = 3,
-	TEXT = 4,
-	ARRAY = 5,
-	TABLE = 6,
-}json_type;
+typedef enum { NONE, BOOLEAN, INTEGER, DECIMAL, TEXT, ARRAY, TABLE }json_type;
 
 typedef struct json_object{
 	json_type type;	//type of json object
