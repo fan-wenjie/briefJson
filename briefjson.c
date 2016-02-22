@@ -296,7 +296,7 @@ static int parsing(parse_engine* engine, json_object *pos_parse)
 			return 0;
 		}
 		pos_parse->type = (strstr(buffer, ".") || strstr(buffer, "e") || strstr(buffer, "E")) ? DECIMAL : INTEGER;
-		char *format = pos_parse->type == INTEGER ? "%lld" : "%lf";
+		const char *format = pos_parse->type == INTEGER ? "%lld" : "%lf";
 		if (sscanf(buffer, format, &pos_parse->value)) return 0;
 		engine->message = (wchar_t *)L"Unexpected end";
 		return 1;
