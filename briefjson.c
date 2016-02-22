@@ -383,13 +383,13 @@ json_object json_parse(wchar_t json[],wchar_t **message,long* error_pos)
 	{
 		if(message)		*message = result.message;
 		json_object_free(&result.data);
-		if(error_pos)		*error_pos = result.pos-result.json;
+		if(error_pos)		*error_pos = result.pos - result.json;
 		json_object null_item;
 		null_item.type = NONE;
 		return null_item;
 	}
 	if(message)	*message = (wchar_t *)L"SUCCEED";
-	if(error_pos) *error_pos = -1;
+	if(error_pos) *error_pos = 0;
 	return result.data;
 }
 
