@@ -281,13 +281,13 @@ static int parsing(parse_engine* engine, json_object *pos_parse)
 		if (!strcmp(buffer, "TRUE") || !strcmp(buffer, "true"))
 		{
 			pos_parse->type = BOOLEAN;
-			pos_parse->value.boolean = 1;
+			pos_parse->value.boolean = true;
 			return 0;
 		}
 		else if (!strcmp(buffer, "FALSE") || !strcmp(buffer, "false"))
 		{
 			pos_parse->type = BOOLEAN;
-			pos_parse->value.boolean = 0;
+			pos_parse->value.boolean = false;
 			return 0;
 		}
 		else if (!strcmp(buffer, "NULL") || !strcmp(buffer, "null"))
