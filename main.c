@@ -1,4 +1,3 @@
-#include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
 #include "briefJson.h"
@@ -73,7 +72,6 @@ int main()
 	wchar_t *text = json_serialize(&item);
 	wprintf(L"%ls\n", text);
 	json_object_free(&item);
-	free(text);
-	system("pause");
+	json_text_free(text);
  	return 0;
 }
