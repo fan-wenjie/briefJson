@@ -8,7 +8,6 @@ typedef struct
 	json_object data;
 	wchar_t *json;
 	wchar_t *pos;
-	int succeed;
 	wchar_t *message;
 }parse_engine;
 
@@ -349,7 +348,7 @@ static void object_to_string(json_object *data, strlist *head)
             const char *format = data->type == INTEGER ? "%lld" : "%lf";
             sprintf(tmp, format, data->value);
             size_t len = strlen(tmp);
-            for (int i = 0; i < len; ++i)
+            for (size_t i = 0; i < len; ++i)
                 tmp1[i] = tmp[i];
             strlist_append(head, tmp1, len);
             break;
