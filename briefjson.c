@@ -255,13 +255,13 @@ static int parsing(parse_engine* engine, json_object *pos_parse)
 	}
 	}
     int length = 0;
-    char str[32] = { 0 };
+    char buffer[32] = { 0 };
     while (c >= ' ') {
         if(strchr(",:]}/\\\"[{;=#", c))
             break;
-        if(length<sizeof(str)&&strchr("0123456789+-.AEFLNRSTUaeflnrstu",c))
+        if(length<sizeof(buffer)&&strchr("0123456789+-.AEFLNRSTUaeflnrstu",c))
         {
-            str[length++]=(char)c;
+            buffer[length++]=(char)c;
             c = *engine->pos++;
         }
         else{
@@ -278,55 +278,26 @@ static int parsing(parse_engine* engine, json_object *pos_parse)
 		return 0;
 	}
 	else {
-		int iszero = 1;
-		for (unsigned i = 0; i < strlen(str); ++i)
-			if (str[i] != '0') {
-				iszero = 0;
-				break;
-			}
-		if (iszero)
-		{
-			pos_parse->type = INTEGER;
-			pos_parse->value.integer = 0;
-			return 0;
-		}
-		if (!strcmp(str, "TRUE") || !strcmp(str, "true"))
+		if (!strcmp(buffer, "TRUE") || !strcmp(buffer, "true"))
 		{
 			pos_parse->type = BOOLEAN;
 			pos_parse->value.boolean = 1;
 			return 0;
 		}
-		else if (!strcmp(str, "FALSE") || !strcmp(str, "false"))
+		else if (!strcmp(buffer, "FALSE") || !strcmp(buffer, "false"))
 		{
 			pos_parse->type = BOOLEAN;
 			pos_parse->value.boolean = 0;
 			return 0;
 		}
-		else if (!strcmp(str, "NULL") || !strcmp(str, "null"))
+		else if (!strcmp(buffer, "NULL") || !strcmp(buffer, "null"))
 		{
 			pos_parse->type = NONE;
 			return 0;
 		}
-		if (!strstr(str, "E") && !strstr(str, "e") && !strstr(str, "."))
-		{
-			long long value = atoll(str);
-			if (value)
-			{
-				pos_parse->type = INTEGER;
-				pos_parse->value.integer = value;
-				return 0;
-			}
-		}
-		else
-		{
-			double value = atof(str);
-			if (value)
-			{
-				pos_parse->type = DECIMAL;
-				pos_parse->value.decimal = value;
-				return 0;
-			}
-		}
+		pos_parse->type = (!strstr(buffer, "E") && !strstr(buffer, "e") && !strstr(buffer, "."))?INTEGER:DECIMAL;
+		char *format = pos_parse->type == INTEGER ? "%lld" : "%lf";
+		if (sscanf(buffer, format, &pos_parse->value)) return 0;
 		engine->message = (wchar_t *)L"Unexpected end";
 		return 1;
 	}
@@ -344,13 +315,13 @@ static void object_to_string(json_object *data, strlist *head)
         case DECIMAL:
         {
             char tmp[32] = { 0 };
-            wchar_t tmp1[32] = { 0 };
+            wchar_t buffer[32] = { 0 };
             const char *format = data->type == INTEGER ? "%lld" : "%lf";
             sprintf(tmp, format, data->value);
             size_t len = strlen(tmp);
             for (size_t i = 0; i < len; ++i)
-                tmp1[i] = tmp[i];
-            strlist_append(head, tmp1, len);
+                buffer[i] = tmp[i];
+            strlist_append(head, buffer, len);
             break;
         }
         case BOOLEAN:
@@ -397,8 +368,7 @@ static void object_to_string(json_object *data, strlist *head)
                 ++index;
             }
             strlist_append(head, L"]", 1);
-            break;
-            
+            break;            
         }
     }
 }
@@ -422,8 +392,6 @@ json_object json_parse(wchar_t json[],wchar_t **message,long* error_pos)
 	if(error_pos) *error_pos = -1;
 	return result.data;
 }
-
-
 
 wchar_t *json_serialize(json_object *data)
 {
