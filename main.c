@@ -7,8 +7,8 @@ static void print(json_object *data, int n,wchar_t *key)
 {
 	for (int i = 0; i < n; ++i)
 		wprintf(L" |");
-	wprintf(L"—");
-	if (key) wprintf(L"key:%ls\t", key);
+	wprintf(L"-");
+	if(key) wprintf(L"key:%ls\t", key);
 	switch (data->type)
 	{
 	case TABLE: 
@@ -35,7 +35,7 @@ static void print(json_object *data, int n,wchar_t *key)
 	}
 	case BOOLEAN:
 	{
-		wprintf(L"type:bool\tvalue:%ls\n",data->value.boolean?"true":"false");
+		wprintf(L"type:bool\tvalue:%ls\n",data->value.boolean?L"true":L"false");
 		break;
 	}
 	case DECIMAL:
