@@ -1,6 +1,11 @@
 #ifndef BRIEFJSON_H
 #define BRIEFJSON_H
 #include <wchar.h>
+
+#ifndef __cplusplus
+typedef int bool;
+#endif // !__cplusplus
+
 //types of json object
 typedef enum
 {
@@ -17,7 +22,7 @@ typedef struct json_object{
 	json_type type;	//type of json object
 	union
 	{
-		int boolean;
+		bool boolean;
 		long long integer;
 		double decimal;
 		wchar_t *text;
