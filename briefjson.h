@@ -23,7 +23,8 @@ typedef struct json_object{
 	wchar_t key[1];				//if object included in table,it is key
 }json_object;
 
-void json_object_free(json_object* data);	//free the memory of json object
+void json_object_free(json_object* data);	//free the memory of json object created by json_parse
+void json_text_free(wchar_t json[]);	//free the memory of json text created by json_serialize;
 json_object json_parse(wchar_t json[], wchar_t **message, long* error_pos);//parse json text to json object
 wchar_t *json_serialize(json_object* data);//serialize json object to json text
 
