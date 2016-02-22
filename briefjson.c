@@ -414,3 +414,8 @@ void json_object_free(json_object *data)
     else if (data->type == TEXT)
         free(data->value.text);
 }
+
+void json_text_free(wchar_t json[])
+{
+	free(json);
+}
