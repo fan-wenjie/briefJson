@@ -40,12 +40,12 @@ static void print(json_object *data, int n,wchar_t *key)
 	}
 	case DECIMAL:
 	{
-		wprintf(L"type:double\tvalue:%lf\n", data->value.decimal);
+		wprintf(L"type:decimal\tvalue:%lf\n", data->value.decimal);
 		break;
 	}
 	case INTEGER:
 	{
-		wprintf(L"type:int\tvalue:%lld\n", data->value.integer);
+		wprintf(L"type:integer\tvalue:%lld\n", data->value.integer);
 		break;
 	}
 	case TEXT:
@@ -66,7 +66,7 @@ static void print(json_object *data, int n,wchar_t *key)
 
 int main()
 {
-	wchar_t json[] = L"{\"programmers\":[{\"firstName\":\"Brett\",\"lastName\":\"McLaughlin\",\"email\":\"aaaa\",\"age\":33},{\"firstName\":\"Jason\",\"lastName\":\"Hunter\",\"email\":\"bbbb\",\"age\":25},{\"firstName\":\"Elliotte\",\"lastName\":\"Harold\",\"email\":\"cccc\",\"age\":30}],\"authors\":[{\"firstName\":\"Isaac\",\"lastName\":\"Asimov\",\"genre\":\"sciencefiction\",\"age\":53},{\"firstName\":\"Tad\",\"lastName\":\"Williams\",\"genre\":\"fantasy\",\"age\":47},{\"firstName\":\"Frank\",\"lastName\":\"Peretti\",\"genre\":\"christianfiction\",\"age\":28}],\"musicians\":[{\"firstName\":\"Eric\",\"lastName\":\"Clapton\",\"instrument\":\"guitar\",\"age\":19},{\"firstName\":\"Sergei\",\"lastName\":\"Rachmaninoff\",\"instrument\":\"piano\",\"age\":26}]}";
+	wchar_t json[] = L"{\"programmers\":[{\"firstName\":\"Brett\",\"lastName\":\"McLaughlin\",\"email\":\"aaaa\",\"age\":3.3},{\"firstName\":\"Jason\",\"lastName\":\"Hunter\",\"email\":\"bbbb\",\"age\":25},{\"firstName\":\"Elliotte\",\"lastName\":\"Harold\",\"email\":\"cccc\",\"age\":30}],\"authors\":[{\"firstName\":\"Isaac\",\"lastName\":\"Asimov\",\"genre\":\"sciencefiction\",\"age\":53},{\"firstName\":\"Tad\",\"lastName\":\"Williams\",\"genre\":\"fantasy\",\"age\":47},{\"firstName\":\"Frank\",\"lastName\":\"Peretti\",\"genre\":\"christianfiction\",\"age\":28}],\"musicians\":[{\"firstName\":\"Eric\",\"lastName\":\"Clapton\",\"instrument\":\"guitar\",\"age\":19},{\"firstName\":\"Sergei\",\"lastName\":\"Rachmaninoff\",\"instrument\":\"piano\",\"age\":26}]}";
 	json_object item = json_parse(json,0,0);
 	print(&item, 0, 0);
 	wprintf(L"\n");
