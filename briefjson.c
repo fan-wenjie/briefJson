@@ -206,31 +206,12 @@ static int parsing(parse_engine* engine, json_object *pos_parse)
 				engine->message = (wchar_t *)L"Unterminated string";
 				return 1;
 			case L'\\':
+			{
 				ch = *engine->pos++;
-				switch (ch)
-				{
-				case L'b':
-					buffer_append(&sb, L"\b", 1);
-					break;
-				case L't':
-					buffer_append(&sb, L"\t", 1);
-					break;
-				case L'n':
-					buffer_append(&sb, L"\n", 1);
-					break;
-				case L'f':
-					buffer_append(&sb, L"\f", 1);
-					break;
-				case L'r':
-					buffer_append(&sb, L"\r", 1);
-					break;
-				case L'"':
-				case L'\'':
-				case L'\\':
-				case L'/':
-					buffer_append(&sb, &ch, 1);
-					break;
-				case L'u': {
+				wchar_t* espch1 = L"\b\t\n\f\r";
+				wchar_t* espch2 = L"btnfr";
+				wchar_t* espch3 = L"\"'\\/";
+				if (ch == 'u') {
 					wchar_t num = 0;
 					for (int i = 0; i < 4; ++i)
 					{
@@ -244,14 +225,21 @@ static int parsing(parse_engine* engine, json_object *pos_parse)
 						num = num << 4 | tmp;
 					}
 					buffer_append(&sb, &num, 1);
-					break;
 				}
-				default:
-					free(buffer_tostr(&sb));
-					engine->message = (wchar_t *)L"Illegal escape";
-					return 1;
+				else if (wcschr(espch3, ch)) {
+					buffer_append(&sb, &ch, 1);
+				}
+				else {
+					wchar_t *pesp = wcschr(espch2, ch);
+					if (pesp) buffer_append(&sb, pesp - espch2 + espch1, 1);
+					else {
+						free(buffer_tostr(&sb));
+						engine->message = (wchar_t *)L"Illegal escape";
+						return 1;
+					}
 				}
 				break;
+			}
 			default:
 				if (ch == c)
 				{
@@ -306,7 +294,7 @@ static int parsing(parse_engine* engine, json_object *pos_parse)
 			pos_parse->type = NONE;
 			return 0;
 		}
-		pos_parse->type = (strstr(buffer, ".") || strstr(buffer, "e") || strstr(buffer, "E")) ? DECIMAL : INTEGER;
+		pos_parse->type = (strchr(buffer, '.') || strchr(buffer, 'e') || strchr(buffer, 'E')) ? DECIMAL : INTEGER;
 		const char *format = pos_parse->type == INTEGER ? "%lld" : "%lf";
 		if (sscanf(buffer, format, &pos_parse->value)) return 0;
 		engine->message = (wchar_t *)L"Unexpected end";
@@ -345,32 +333,17 @@ static void object_to_string(json_object *data, string_buffer *head)
 	}
 	case TEXT:
 	{
+		wchar_t espch1[] = L"\b\t\n\f\r";
+		wchar_t* espch2[] = { L"\\b",L"\\t",L"\\n",L"\\f",L"\\r" };
 		buffer_append(head, L"\"", 1);
 		wchar_t *pos = data->value.text;
 		wchar_t *end = data->value.text + wcslen(data->value.text);
 		while (pos != end)
 		{
-			switch (*pos++)
-			{
-			case L'\b':
-				buffer_append(head, L"\\b", 2);
-				break;
-			case L'\t':
-				buffer_append(head, L"\\t", 2);
-				break;
-			case L'\n':
-				buffer_append(head, L"\\n", 2);
-				break;
-			case L'\f':
-				buffer_append(head, L"\\f", 2);
-				break;
-			case L'\r':
-				buffer_append(head, L"\\r", 2);
-				break;
-			default:
-				buffer_append(head, pos - 1, 1);
-				break;
-			}
+			wchar_t ch = *pos++;
+			wchar_t *pesp = wcschr(espch1, ch);
+			if (pesp)	buffer_append(head, espch2[pesp - espch1], 2);
+			else buffer_append(head, &ch, 1);
 		}
 		buffer_append(head, L"\"", 1);
 		break;
