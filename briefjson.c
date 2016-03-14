@@ -23,19 +23,14 @@ typedef struct string_node
 typedef struct
 {
 	size_t size;
-	string_node *next;
 	string_node *last;
+	string_node first;
 }string_buffer;
 
-static void buffer_append(string_buffer *buffer, wchar_t* string,size_t length)
+static void buffer_append(string_buffer *buffer, wchar_t* string, size_t length)
 {
 	if (!buffer->last)
-	{
-		string_node *node = (string_node *)malloc(sizeof(string_node));
-		node->next = 0;
-		buffer->size = node->size = 0;
-		buffer->next = buffer->last = node;
-	}
+		buffer->last = &buffer->first;
 	wchar_t *pos = string;
 	while (length)
 	{
@@ -63,10 +58,13 @@ static wchar_t *buffer_tostr(string_buffer *buffer)
 	wchar_t *string = (wchar_t *)malloc(sizeof(wchar_t)*(buffer->size + 1));
 	wchar_t *pos = string;
 	string[buffer->size] = 0;
-	while (buffer->next)
+	string_node *first = &buffer->first;
+	wcsncpy(pos, first->string, first->size);
+	pos += first->size;
+	while (first->next)
 	{
-		string_node *node = buffer->next;
-		buffer->next = node->next;
+		string_node *node = first->next;
+		first->next = node->next;
 		wcsncpy(pos, node->string, node->size);
 		pos += node->size;
 		free(node);
