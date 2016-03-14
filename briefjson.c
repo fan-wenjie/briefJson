@@ -33,10 +33,9 @@ static void buffer_append(string_buffer *buffer, wchar_t* string,size_t length)
 	{
 		string_node *node = (string_node *)malloc(sizeof(string_node));
 		node->next = 0;
-		node->size = 0;
-		buffer->last = node;
+		buffer->size = node->size = 0;
+		buffer->next = buffer->last = node;
 	}
-	if (!buffer->next) buffer->next = buffer->last;
 	wchar_t *pos = string;
 	while (length)
 	{
