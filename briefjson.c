@@ -3,6 +3,12 @@
 #include <stdio.h>
 #include "briefJson.h"
 
+#define BUFFER_SIZE 1024
+#define SZ_ESP 9
+static wchar_t *espsrc = L"\b\t\n\f\r\"'\\/";
+static wchar_t *espdes[] = { L"\\b",L"\\t",L"\\n",L"\\f",L"\\r",L"\\\"",L"\\'",L"\\",L"/" };
+static wchar_t *espuni = L"\\u";
+
 typedef struct
 {
 	json_object data;
@@ -10,8 +16,6 @@ typedef struct
 	wchar_t *pos;
 	wchar_t *message;
 }parse_engine;
-
-#define BUFFER_SIZE 1024
 
 typedef struct string_node
 {
@@ -70,6 +74,81 @@ static wchar_t *buffer_tostr(string_buffer *buffer)
 		free(node);
 	}
 	return string;
+}
+
+static void buffer_free(string_buffer *buffer)
+{
+	string_node *first = &buffer->first;
+	while (first->next)
+	{
+		string_node *node = first->next;
+		first->next = node->next;
+		free(node);
+	}
+}
+
+static wchar_t* string_escape(wchar_t string[], size_t length)
+{
+	string_buffer sb = { 0 };
+	for (size_t i = 0; i < length; ++i)
+	{
+		wchar_t ch = string[i];
+		wchar_t *posesp = wcschr(espsrc, ch);
+		if (posesp)
+		{
+			wchar_t *str = espdes[posesp - espsrc];
+			buffer_append(&sb, str, wcslen(str));
+		}
+		else
+			buffer_append(&sb, &ch, 1);
+	}
+	return buffer_tostr(&sb);
+}
+
+static wchar_t* string_revesp(wchar_t string[], size_t length)
+{
+	wchar_t *pos = string;
+	wchar_t *end = string + length;
+	string_buffer sb = { 0 };
+	while (pos < end)
+	{
+		if (!wcsncmp(pos, espuni, 2))
+		{
+			if (end - pos < 6) {
+				buffer_free(&sb);
+				return 0;
+			}
+			pos += 2;
+			wchar_t num = 0;
+			for (int i = 0; i < 4; ++i)
+			{
+				wchar_t tmp = *pos++;
+				if (tmp >= '0'&&tmp <= '9')
+					tmp = tmp - '0';
+				else if (tmp >= 'A'&&tmp <= 'F')
+					tmp = tmp - ('A' - 10);
+				else if (tmp >= 'a'&&tmp <= 'f')
+					tmp = tmp - ('a' - 10);
+				num = num << 4 | tmp;
+			}
+			buffer_append(&sb, &num, 1);
+			continue;
+		}
+		size_t i = 0;
+		for (; i < SZ_ESP; ++i)
+		{
+			size_t len = wcslen(espdes[i]);
+			if (!wcsncmp(pos, espdes[i], len))
+			{
+				buffer_append(&sb, espsrc + i, 1);
+				pos += len;
+				break;
+			}
+		}
+		if (i == SZ_ESP)
+			buffer_append(&sb, pos++, 1);
+	}
+	return buffer_tostr(&sb);
 }
 
 static json_object* insert_item(json_object *list, wchar_t *key)
@@ -190,114 +269,53 @@ static int parsing(parse_engine* engine, json_object *pos_parse)
 	case '\'':
 	case '"':
 	{
-		pos_parse->type = TEXT;
-		pos_parse->value.text = 0;
-		string_buffer sb = { 0 };
-		while (1)
+		wchar_t *start = engine->pos;
+		while (*engine->pos != L'\"')
 		{
-			wchar_t ch = *engine->pos++;
-			switch (ch)
-			{
-			case L'\n':
-			case L'\r':
-				free(buffer_tostr(&sb));
+			if (!*engine->pos++) {
 				engine->message = (wchar_t *)L"Unterminated string";
 				return 1;
-			case L'\\':
-			{
-				ch = *engine->pos++;
-				wchar_t* espch1 = L"\b\t\n\f\r";
-				wchar_t* espch2 = L"btnfr";
-				wchar_t* espch3 = L"\"'\\/";
-				if (ch == 'u') {
-					wchar_t num = 0;
-					for (int i = 0; i < 4; ++i)
-					{
-						wchar_t tmp = *engine->pos++;
-						if (tmp >= '0'&&tmp <= '9')
-							tmp = tmp - '0';
-						else if (tmp >= 'A'&&tmp <= 'F')
-							tmp = tmp - ('A' - 10);
-						else if (tmp >= 'a'&&tmp <= 'f')
-							tmp = tmp - ('a' - 10);
-						num = num << 4 | tmp;
-					}
-					buffer_append(&sb, &num, 1);
-				}
-				else if (wcschr(espch3, ch)) {
-					buffer_append(&sb, &ch, 1);
-				}
-				else {
-					wchar_t *pesp = wcschr(espch2, ch);
-					if (pesp) buffer_append(&sb, pesp - espch2 + espch1, 1);
-					else {
-						free(buffer_tostr(&sb));
-						engine->message = (wchar_t *)L"Illegal escape";
-						return 1;
-					}
-				}
-				break;
-			}
-			default:
-				if (ch == c)
-				{
-					pos_parse->value.text = buffer_tostr(&sb);
-					return 0;
-				}
-				buffer_append(&sb, &ch, 1);
-				break;
 			}
 		}
-		break;
-	}
-	}
-	int length = 0;
-	char buffer[32] = { 0 };
-	while (c >= ' ') {
-		if (strchr(",:]}/\\\"[{;=#", c))
-			break;
-		if (length<sizeof(buffer) && strchr("0123456789+-.AEFLNRSTUaeflnrstu", c))
-		{
-			buffer[length++] = (char)c;
-			c = *engine->pos++;
-		}
-		else {
-			engine->message = (wchar_t *)L"Illegal Value";
-			return 1;
-		}
-	}
-	--engine->pos;
-	if (!length)
-	{
 		pos_parse->type = TEXT;
-		pos_parse->value.text = (wchar_t *)malloc(sizeof(wchar_t));
-		pos_parse->value.text[0] = 0;
+		pos_parse->value.text = string_revesp(start, engine->pos++ - start);
 		return 0;
 	}
-	else {
-		if (!strcmp(buffer, "TRUE") || !strcmp(buffer, "true"))
-		{
-			pos_parse->type = BOOLEAN;
-			pos_parse->value.boolean = true;
-			return 0;
-		}
-		else if (!strcmp(buffer, "FALSE") || !strcmp(buffer, "false"))
-		{
-			pos_parse->type = BOOLEAN;
-			pos_parse->value.boolean = false;
-			return 0;
-		}
-		else if (!strcmp(buffer, "NULL") || !strcmp(buffer, "null"))
-		{
-			pos_parse->type = NONE;
-			return 0;
-		}
-		pos_parse->type = (strchr(buffer, '.') || strchr(buffer, 'e') || strchr(buffer, 'E')) ? DECIMAL : INTEGER;
-		const char *format = pos_parse->type == INTEGER ? "%lld" : "%lf";
-		if (sscanf(buffer, format, &pos_parse->value)) return 0;
-		engine->message = (wchar_t *)L"Unexpected end";
-		return 1;
 	}
+	wchar_t *start = engine->pos - 1;
+	while (c >= ' ') {
+		if (strchr(",:]}/\"[{;=#", c))
+			break;
+		c = *engine->pos++;
+	}
+	wchar_t *string = string_revesp(start, --engine->pos - start);
+	if (!wcscmp(string, L"TRUE") || !wcscmp(string, L"true"))
+	{
+		pos_parse->type = BOOLEAN;
+		pos_parse->value.boolean = true;
+	}
+	else if (!wcscmp(string, L"FALSE") || !wcscmp(string, L"false"))
+	{
+		pos_parse->type = BOOLEAN;
+		pos_parse->value.boolean = false;
+	}
+	else if (!wcscmp(string, L"NULL") || !wcscmp(string, L"null"))
+	{
+		pos_parse->type = NONE;
+	}
+	else
+	{
+		pos_parse->type = (wcschr(string, L'.') || wcschr(string, L'e') || wcschr(string, L'E')) ? DECIMAL : INTEGER;
+		const wchar_t *format = pos_parse->type == INTEGER ? L"%lld" : L"%lf";
+		if (!swscanf(string, format, &pos_parse->value)) 
+		{
+			pos_parse->type = TEXT;
+			pos_parse->value.text = string;
+			return 0;
+		}
+	}
+	free(string);
+	return 0;
 }
 
 static void object_to_string(json_object *data, string_buffer *head)
@@ -311,14 +329,10 @@ static void object_to_string(json_object *data, string_buffer *head)
 	case INTEGER:
 	case DECIMAL:
 	{
-		char tmp[32] = { 0 };
 		wchar_t buffer[32] = { 0 };
-		const char *format = data->type == INTEGER ? "%lld" : "%lf";
-		sprintf(tmp, format, data->value);
-		size_t len = strlen(tmp);
-		for (size_t i = 0; i < len; ++i)
-			buffer[i] = tmp[i];
-		buffer_append(head, buffer, len);
+		const wchar_t *format = data->type == INTEGER ? L"%lld" : L"%lf";
+		swprintf(buffer, format, data->value);
+		buffer_append(head, buffer, wcslen(buffer));
 		break;
 	}
 	case BOOLEAN:
@@ -331,19 +345,11 @@ static void object_to_string(json_object *data, string_buffer *head)
 	}
 	case TEXT:
 	{
-		wchar_t espch1[] = L"\b\t\n\f\r";
-		wchar_t* espch2[] = { L"\\b",L"\\t",L"\\n",L"\\f",L"\\r" };
 		buffer_append(head, L"\"", 1);
-		wchar_t *pos = data->value.text;
-		wchar_t *end = data->value.text + wcslen(data->value.text);
-		while (pos != end)
-		{
-			wchar_t ch = *pos++;
-			wchar_t *pesp = wcschr(espch1, ch);
-			if (pesp)	buffer_append(head, espch2[pesp - espch1], 2);
-			else buffer_append(head, &ch, 1);
-		}
+		wchar_t *string = string_escape(data->value.text, wcslen(data->value.text));
+		buffer_append(head, string, wcslen(string));
 		buffer_append(head, L"\"", 1);
+		free(string);
 		break;
 	}
 	case TABLE:
@@ -360,7 +366,6 @@ static void object_to_string(json_object *data, string_buffer *head)
 			object_to_string(&key, head);
 			buffer_append(head, L":", 1);
 			object_to_string(item, head);
-
 			item = item->next;
 			++index;
 		}
