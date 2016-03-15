@@ -271,7 +271,7 @@ static int parsing(parse_engine* engine, json_object *pos_parse)
 	case '"':
 	{
 		wchar_t *start = engine->pos;
-		while (*engine->pos != L'\"')
+		while (*engine->pos != c)
 		{
 			if (!*engine->pos++) {
 				engine->message = (wchar_t *)L"Unterminated string";
