@@ -154,14 +154,15 @@ static wchar_t* string_revesp(wchar_t string[], size_t length)
 static json_object* insert_item(json_object *list, wchar_t *key)
 {
 	json_object *item;
+	size_t len = 0;
 	if (key) 
 	{
-		size_t len = wcslen(key);
+		len = wcslen(key);
 		item = (json_object *)malloc(sizeof(json_object) + sizeof(wchar_t)*len);
-		item->key[len] = 0;
 		wcsncpy(item->key, key, len);
 	}else item = (json_object *)malloc(sizeof(json_object));
 	item->type = NONE;
+	item->key[len] = 0;
     item->next = 0;
     if(!list->value.item) list->value.item=item;
     else for(json_object *i=list->value.item;;i=i->next)
