@@ -87,9 +87,8 @@ static void buffer_free(string_buffer *buffer)
 	}
 }
 
-static wchar_t* string_escape(wchar_t string[], size_t length)
+static void string_escape(wchar_t string[], string_buffer *sb,size_t length)
 {
-	string_buffer sb = { 0 };
 	for (size_t i = 0; i < length; ++i)
 	{
 		const wchar_t ch = string[i];
@@ -97,12 +96,11 @@ static wchar_t* string_escape(wchar_t string[], size_t length)
 		if (posesp)
 		{
 			const wchar_t *str = espdes[posesp - espsrc];
-			buffer_append(&sb, str, wcslen(str));
+			buffer_append(sb, str, wcslen(str));
 		}
 		else
-			buffer_append(&sb, &ch, 1);
+			buffer_append(sb, &ch, 1);
 	}
-	return buffer_tostr(&sb);
 }
 
 static wchar_t* string_revesp(wchar_t string[], size_t length)
@@ -348,10 +346,8 @@ static void object_to_string(json_object *data, string_buffer *head)
 	case TEXT:
 	{
 		buffer_append(head, L"\"", 1);
-		wchar_t *string = string_escape(data->value.text, wcslen(data->value.text));
-		buffer_append(head, string, wcslen(string));
+		string_escape(data->value.text, head,wcslen(data->value.text));
 		buffer_append(head, L"\"", 1);
-		free(string);
 		break;
 	}
 	case TABLE:
