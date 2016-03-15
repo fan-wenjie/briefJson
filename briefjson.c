@@ -330,8 +330,10 @@ static void object_to_string(json_object *data, string_buffer *head)
 	case DECIMAL:
 	{
 		wchar_t buffer[32] = { 0 };
-		const wchar_t *format = data->type == INTEGER ? L"%lld" : L"%lf";
-		swprintf(buffer, sizeof(buffer), format, data->value);
+        if(data->type==INTEGER)
+            swprintf(buffer, sizeof(buffer), L"%lld",data->value.integer);
+        else
+            swprintf(buffer, sizeof(buffer), L"%lf",data->value.decimal);
 		buffer_append(head, buffer, wcslen(buffer));
 		break;
 	}
