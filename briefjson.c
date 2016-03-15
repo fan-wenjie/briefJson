@@ -279,7 +279,7 @@ static int parsing(parse_engine* engine, json_object *pos_parse)
 		}
 		pos_parse->type = TEXT;
 		pos_parse->value.text = string_revesp(start, engine->pos++ - start);
-		return 0;
+		return !pos_parse->value.text;
 	}
 	}
 	wchar_t *start = engine->pos - 1;
@@ -289,6 +289,7 @@ static int parsing(parse_engine* engine, json_object *pos_parse)
 		c = *engine->pos++;
 	}
 	wchar_t *string = string_revesp(start, --engine->pos - start);
+	if (!string) return 1;
 	if (!wcscmp(string, L"TRUE") || !wcscmp(string, L"true"))
 	{
 		pos_parse->type = BOOLEAN;
@@ -331,7 +332,7 @@ static void object_to_string(json_object *data, string_buffer *head)
 	{
 		wchar_t buffer[32] = { 0 };
 		const wchar_t *format = data->type == INTEGER ? L"%lld" : L"%lf";
-		swprintf(buffer, format, data->value);
+		swprintf(buffer, sizeof(buffer), format, data->value);
 		buffer_append(head, buffer, wcslen(buffer));
 		break;
 	}
