@@ -5,9 +5,9 @@
 
 #define BUFFER_SIZE 1024
 #define SZ_ESP 9
-static wchar_t *espsrc = L"\b\t\n\f\r\"'\\/";
-static wchar_t *espdes[] = { L"\\b",L"\\t",L"\\n",L"\\f",L"\\r",L"\\\"",L"\\'",L"\\",L"/" };
-static wchar_t *espuni = L"\\u";
+const static wchar_t espsrc[] = L"\b\t\n\f\r\"'\\/";
+const static wchar_t *const espdes[] = { L"\\b",L"\\t",L"\\n",L"\\f",L"\\r",L"\\\"",L"\\'",L"\\",L"/" };
+const static wchar_t espuni[] = L"\\u";
 
 typedef struct
 {
@@ -31,11 +31,11 @@ typedef struct
 	string_node first;
 }string_buffer;
 
-static void buffer_append(string_buffer *buffer, wchar_t* string, size_t length)
+static void buffer_append(string_buffer *buffer, const wchar_t* string, size_t length)
 {
 	if (!buffer->last)
 		buffer->last = &buffer->first;
-	wchar_t *pos = string;
+	const wchar_t *pos = string;
 	while (length)
 	{
 		size_t copysize = length;
@@ -92,11 +92,11 @@ static wchar_t* string_escape(wchar_t string[], size_t length)
 	string_buffer sb = { 0 };
 	for (size_t i = 0; i < length; ++i)
 	{
-		wchar_t ch = string[i];
-		wchar_t *posesp = wcschr(espsrc, ch);
+		const wchar_t ch = string[i];
+		const wchar_t *posesp = wcschr(espsrc, ch);
 		if (posesp)
 		{
-			wchar_t *str = espdes[posesp - espsrc];
+			const wchar_t *str = espdes[posesp - espsrc];
 			buffer_append(&sb, str, wcslen(str));
 		}
 		else
