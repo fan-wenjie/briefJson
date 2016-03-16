@@ -57,6 +57,21 @@ static void buffer_append(string_buffer *buffer, const wchar_t* string, size_t l
 	}
 }
 
+static void buffer_addchar(string_buffer *buffer, const wchar_t ch)
+{
+	if (!buffer->last)
+		buffer->last = &buffer->first;
+	if (buffer->last->size == BUFFER_SIZE)
+	{
+		buffer->last->next = (string_node *)malloc(sizeof(string_node));
+		buffer->last = buffer->last->next;
+		buffer->last->next = 0;
+		buffer->last->size = 0;
+	}
+	buffer->last->string[buffer->last->size++] = ch;
+	++buffer->size;
+}
+
 static wchar_t *buffer_tostr(string_buffer *buffer)
 {
 	wchar_t *string = (wchar_t *)malloc(sizeof(wchar_t)*(buffer->size + 1));
@@ -87,7 +102,7 @@ static void buffer_free(string_buffer *buffer)
 	}
 }
 
-static void string_escape(wchar_t string[], string_buffer *sb,size_t length)
+static void string_escape(string_buffer *sb,wchar_t string[], size_t length)
 {
 	for (size_t i = 0; i < length; ++i)
 	{
@@ -99,7 +114,7 @@ static void string_escape(wchar_t string[], string_buffer *sb,size_t length)
 			buffer_append(sb, str, wcslen(str));
 		}
 		else
-			buffer_append(sb, &ch, 1);
+			buffer_addchar(sb, ch);
 	}
 }
 
@@ -129,7 +144,7 @@ static wchar_t* string_revesp(wchar_t string[], size_t length)
 					tmp = tmp - ('a' - 10);
 				num = num << 4 | tmp;
 			}
-			buffer_append(&sb, &num, 1);
+			buffer_addchar(&sb, num);
 			continue;
 		}
 		size_t i = 0;
@@ -138,13 +153,13 @@ static wchar_t* string_revesp(wchar_t string[], size_t length)
 			size_t len = wcslen(espdes[i]);
 			if (!wcsncmp(pos, espdes[i], len))
 			{
-				buffer_append(&sb, espsrc + i, 1);
+				buffer_addchar(&sb, espsrc[i]);
 				pos += len;
 				break;
 			}
 		}
 		if (i == SZ_ESP)
-			buffer_append(&sb, pos++, 1);
+			buffer_addchar(&sb, *pos++);
 	}
 	return buffer_tostr(&sb);
 }
@@ -271,6 +286,7 @@ static int parsing(parse_engine* engine, json_object *pos_parse)
 		wchar_t *start = engine->pos;
 		while (*engine->pos != c)
 		{
+			engine->pos += *engine->pos == '\\';
 			if (!*engine->pos++) {
 				engine->message = (wchar_t *)L"Unterminated string";
 				return 1;
@@ -318,38 +334,38 @@ static int parsing(parse_engine* engine, json_object *pos_parse)
 	return 0;
 }
 
-static void object_to_string(json_object *data, string_buffer *head)
+static void object_to_string(json_object *data, string_buffer *sb)
 {
 	switch (data->type) {
 	case NONE:
 	{
-		buffer_append(head, L"null", 4);
+		buffer_append(sb, L"null", 4);
 		break;
 	}
 	case INTEGER:
 	case DECIMAL:
 	{
 		wchar_t buffer[32] = { 0 };
-        if(data->type==INTEGER)
-            swprintf(buffer, sizeof(buffer), L"%lld",data->value.integer);
-        else
-            swprintf(buffer, sizeof(buffer), L"%lf",data->value.decimal);
-		buffer_append(head, buffer, wcslen(buffer));
+		if (data->type == INTEGER)
+			swprintf(buffer, sizeof(buffer), L"%lld", data->value.integer);
+		else
+			swprintf(buffer, sizeof(buffer), L"%lf", data->value.decimal);
+		buffer_append(sb, buffer, wcslen(buffer));
 		break;
 	}
 	case BOOLEAN:
 	{
 		if (data->value.boolean)
-			buffer_append(head, L"true", 4);
+			buffer_append(sb, L"true", 4);
 		else
-			buffer_append(head, L"false", 5);
+			buffer_append(sb, L"false", 5);
 		break;
 	}
 	case TEXT:
 	{
-		buffer_append(head, L"\"", 1);
-		string_escape(data->value.text, head,wcslen(data->value.text));
-		buffer_append(head, L"\"", 1);
+		buffer_addchar(sb, L'"');
+		string_escape(sb,data->value.text, wcslen(data->value.text));
+		buffer_addchar(sb, L'"');
 		break;
 	}
 	case TABLE:
@@ -358,18 +374,18 @@ static void object_to_string(json_object *data, string_buffer *head)
 		int index = 0;
 		while (item)
 		{
-			if (index) buffer_append(head, L",", 1);
-			else buffer_append(head, L"{", 1);
+			if (index) buffer_addchar(sb, L',');
+			else buffer_addchar(sb, L'{');
 			json_object key;
 			key.type = TEXT;
 			key.value.text = item->key;
-			object_to_string(&key, head);
-			buffer_append(head, L":", 1);
-			object_to_string(item, head);
+			object_to_string(&key, sb);
+			buffer_addchar(sb, L':');
+			object_to_string(item, sb);
 			item = item->next;
 			++index;
 		}
-		buffer_append(head, L"}", 1);
+		buffer_addchar(sb, L'}');
 		break;
 	}
 	case ARRAY:
@@ -378,12 +394,12 @@ static void object_to_string(json_object *data, string_buffer *head)
 		int index = 0;
 		while (item)
 		{
-			buffer_append(head, index ? L"," : L"[", 1);
-			object_to_string(item, head);
+			buffer_addchar(sb, index ? L',' : L'[');
+			object_to_string(item, sb);
 			item = item->next;
 			++index;
 		}
-		buffer_append(head, L"]", 1);
+		buffer_addchar(sb, L']');
 		break;
 	}
 	}
