@@ -118,10 +118,9 @@ static void string_escape(string_buffer *sb,wchar_t string[], size_t length)
 	}
 }
 
-static wchar_t* string_revesp(wchar_t string[], size_t length)
+static wchar_t* string_revesp(wchar_t string[], wchar_t *end)
 {
 	wchar_t *pos = string;
-	wchar_t *end = string + length;
 	string_buffer sb = { 0 };
 	while (pos < end)
 	{
@@ -293,7 +292,7 @@ static int parsing(parse_engine* engine, json_object *pos_parse)
 			}
 		}
 		pos_parse->type = TEXT;
-		pos_parse->value.text = string_revesp(start, engine->pos++ - start);
+		pos_parse->value.text = string_revesp(start, engine->pos++);
 		return !pos_parse->value.text;
 	}
 	}
@@ -303,7 +302,7 @@ static int parsing(parse_engine* engine, json_object *pos_parse)
 			break;
 		c = *engine->pos++;
 	}
-	wchar_t *string = string_revesp(start, --engine->pos - start);
+	wchar_t *string = string_revesp(start, --engine->pos);
 	if (!string) return 1;
 	if (!wcscmp(string, L"TRUE") || !wcscmp(string, L"true"))
 	{
