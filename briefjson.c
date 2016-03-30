@@ -4,10 +4,11 @@
 #include "briefJson.h"
 
 #define BUFFER_SIZE 1024
-#define SZ_ESP 9
-const static wchar_t espsrc[] = L"\b\t\n\f\r\"'\\/";
-const static wchar_t *const espdes[] = { L"\\b",L"\\t",L"\\n",L"\\f",L"\\r",L"\\\"",L"\\'",L"\\",L"/" };
+
+const static wchar_t espsrc[] = L"\b\t\n\f\r\"'";
+const static wchar_t *const espdes[] = { L"\\b",L"\\t",L"\\n",L"\\f",L"\\r",L"\\\"",L"\\'" };
 const static wchar_t espuni[] = L"\\u";
+const static size_t sz_esp = sizeof(espdes) / sizeof(void *);
 
 typedef struct
 {
@@ -102,7 +103,7 @@ static void buffer_free(string_buffer *buffer)
 	}
 }
 
-static void string_escape(string_buffer *sb,wchar_t string[], size_t length)
+static void string_escape(string_buffer *sb, wchar_t string[], size_t length)
 {
 	for (size_t i = 0; i < length; ++i)
 	{
@@ -147,7 +148,7 @@ static wchar_t* string_revesp(wchar_t string[], wchar_t *end)
 			continue;
 		}
 		size_t i = 0;
-		for (; i < SZ_ESP; ++i)
+		for (; i < sz_esp; ++i)
 		{
 			size_t len = wcslen(espdes[i]);
 			if (!wcsncmp(pos, espdes[i], len))
@@ -157,7 +158,7 @@ static wchar_t* string_revesp(wchar_t string[], wchar_t *end)
 				break;
 			}
 		}
-		if (i == SZ_ESP)
+		if (i == sz_esp)
 			buffer_addchar(&sb, *pos++);
 	}
 	return buffer_tostr(&sb);
@@ -167,28 +168,39 @@ static json_object* insert_item(json_object *list, wchar_t *key)
 {
 	json_object *item;
 	size_t len = 0;
-	if (key) 
+	if (key)
 	{
 		len = wcslen(key);
 		item = (json_object *)malloc(sizeof(json_object) + sizeof(wchar_t)*len);
 		wcsncpy(item->key, key, len);
-	}else item = (json_object *)malloc(sizeof(json_object));
+	}
+	else item = (json_object *)malloc(sizeof(json_object));
 	item->type = NONE;
 	item->key[len] = 0;
-    item->next = 0;
-    if(!list->value.item) list->value.item=item;
-    else for(json_object *i=list->value.item;;i=i->next)
-        if(!i->next)
-        {
-            i->next = item;
-            break;
-        }
-    return item;
+	item->next = 0;
+	if (!list->value.item) list->value.item = item;
+	else {
+		static json_object *head = 0;
+		static json_object *rear = 0;
+		if (!rear || list != head)
+		{
+			head = list;
+			for (json_object *i = list->value.item;; i = i->next)
+				if (!i->next)
+				{
+					rear = i;
+					break;
+				}
+		}
+		rear->next = item;
+		rear = item;
+	}
+	return item;
 }
 
 static wchar_t next_token(parse_engine* engine) {
 	wchar_t ch;
-    while ((ch = *engine->pos++) <= ' '&&ch>0);
+	while ((ch = *engine->pos++) <= ' '&&ch>0);
 	return *(engine->pos - 1);
 }
 
@@ -322,7 +334,7 @@ static int parsing(parse_engine* engine, json_object *pos_parse)
 	{
 		pos_parse->type = (wcschr(string, L'.') || wcschr(string, L'e') || wcschr(string, L'E')) ? DECIMAL : INTEGER;
 		const wchar_t *format = pos_parse->type == INTEGER ? L"%lld" : L"%lf";
-		if (!swscanf(string, format, &pos_parse->value)) 
+		if (!swscanf(string, format, &pos_parse->value))
 		{
 			pos_parse->type = TEXT;
 			pos_parse->value.text = string;
@@ -363,7 +375,7 @@ static void object_to_string(json_object *data, string_buffer *sb)
 	case TEXT:
 	{
 		buffer_addchar(sb, L'"');
-		string_escape(sb,data->value.text, wcslen(data->value.text));
+		string_escape(sb, data->value.text, wcslen(data->value.text));
 		buffer_addchar(sb, L'"');
 		break;
 	}
@@ -404,7 +416,7 @@ static void object_to_string(json_object *data, string_buffer *sb)
 	}
 }
 
-json_object json_parse(wchar_t json[],wchar_t **message,long* error_pos)
+json_object json_parse(wchar_t json[], wchar_t **message, long* error_pos)
 {
 	parse_engine result;
 	result.data.type = NONE;
@@ -412,15 +424,15 @@ json_object json_parse(wchar_t json[],wchar_t **message,long* error_pos)
 	result.json = json;
 	if (parsing(&result, &result.data))
 	{
-		if(message)		*message = result.message;
+		if (message)		*message = result.message;
 		json_object_free(&result.data);
-		if(error_pos)		*error_pos = result.pos - result.json;
+		if (error_pos)		*error_pos = result.pos - result.json;
 		json_object null_item;
 		null_item.type = NONE;
 		return null_item;
 	}
-	if(message)	*message = (wchar_t *)L"SUCCEED";
-	if(error_pos) *error_pos = 0;
+	if (message)	*message = (wchar_t *)L"SUCCEED";
+	if (error_pos) *error_pos = 0;
 	return result.data;
 }
 
@@ -428,22 +440,22 @@ wchar_t *json_serialize(json_object *data)
 {
 	string_buffer head = { 0 };
 	object_to_string(data, &head);
-	wchar_t *string = buffer_tostr(&head);	
+	wchar_t *string = buffer_tostr(&head);
 	return string;
 }
 
 void json_object_free(json_object *data)
 {
-    if (data->type == ARRAY || data->type == TABLE)
-        while (data->value.item)
-        {
-            json_object *item = data->value.item;
-            data->value.item = item->next;
-            json_object_free(item);
-            free(item);
-        }
-    else if (data->type == TEXT)
-        free(data->value.text);
+	if (data->type == ARRAY || data->type == TABLE)
+		while (data->value.item)
+		{
+			json_object *item = data->value.item;
+			data->value.item = item->next;
+			json_object_free(item);
+			free(item);
+		}
+	else if (data->type == TEXT)
+		free(data->value.text);
 }
 
 void json_text_free(wchar_t json[])
